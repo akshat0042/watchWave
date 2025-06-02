@@ -1,0 +1,286 @@
+Schema Name	Purpose
+auth	Users, user_profiles, roles
+videos	Videos, tags, video_tags
+interactions	Comments, likes, watch_later
+subscriptions	Subscriptions
+notifications	Notifications
+analytics	VideoAnalytics, History, Reports, RoleChangeRequests
+
+
+CREATE SCHEMA auth;
+CREATE SCHEMA videos;
+CREATE SCHEMA interactions;
+CREATE SCHEMA subscriptions;
+CREATE SCHEMA notifications;
+CREATE SCHEMA analytics;
+
+-- Final Refined SQL Schema with Improvements for Scalability and Future-Proofing
+
+-- SCHEMA CREATION
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE SCHEMA IF NOT EXISTS videos;
+CREATE SCHEMA IF NOT EXISTS interactions;
+CREATE SCHEMA IF NOT EXISTS subscriptions;
+CREATE SCHEMA IF NOT EXISTS notifications;
+CREATE SCHEMA IF NOT EXISTS analytics;
+
+-- USERS TABLE (auth.users)
+CREATE TABLE IF NOT EXISTS auth.users (
+  id UUID PRIMARY KEY,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password_hash VARCHAR NOT NULL,
+  profile_pic_url VARCHAR,
+  is_blocked BOOLEAN DEFAULT FALSE,
+  is_verified BOOLEAN DEFAULT FALSE,
+  verification_token VARCHAR,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE OR REPLACE FUNCTION auth.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_update_users_updated_at ON auth.users;
+CREATE TRIGGER trigger_update_users_updated_at
+BEFORE UPDATE ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION auth.update_updated_at_column();
+
+-- USER PROFILES
+CREATE TABLE IF NOT EXISTS auth.user_profiles (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  gender VARCHAR(10),
+  birthdate DATE,
+  location VARCHAR(100),
+  bio TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ROLES
+CREATE TABLE IF NOT EXISTS auth.roles (
+  id SERIAL PRIMARY KEY,
+  role_name VARCHAR(50) UNIQUE NOT NULL,
+  description TEXT
+);
+
+-- USER ROLES (many-to-many)
+CREATE TABLE IF NOT EXISTS auth.user_roles (
+  user_id UUID REFERENCES auth.users(id),
+  role_id INT REFERENCES auth.roles(id),
+  PRIMARY KEY (user_id, role_id)
+);
+
+-- ROLE CHANGE REQUESTS
+CREATE TABLE IF NOT EXISTS auth.role_change_requests (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  requested_role VARCHAR(50),
+  status VARCHAR(20) CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')) DEFAULT 'PENDING',
+  requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at TIMESTAMP
+);
+
+-- VIDEOS
+CREATE TABLE IF NOT EXISTS videos.videos (
+  id UUID PRIMARY KEY,
+  title VARCHAR NOT NULL,
+  description TEXT,
+  video_url VARCHAR NOT NULL,
+  thumbnail_url VARCHAR,
+  uploader_id UUID REFERENCES auth.users(id),
+  views BIGINT DEFAULT 0,
+  visibility VARCHAR(10) CHECK (visibility IN ('PUBLIC', 'PRIVATE', 'UNLISTED')) DEFAULT 'PUBLIC',
+  is_comment_enabled BOOLEAN DEFAULT TRUE,
+  is_deleted BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE videos.videos
+ADD COLUMN IF NOT EXISTS thumbnail_file_path VARCHAR,
+ADD COLUMN IF NOT EXISTS thumbnail_file_size BIGINT,
+ADD COLUMN IF NOT EXISTS thumbnail_content_type VARCHAR(50);
+
+-- Update the comment for clarity
+COMMENT ON COLUMN videos.videos.thumbnail_url IS 'Public URL for accessing thumbnail';
+COMMENT ON COLUMN videos.videos.thumbnail_file_path IS 'Server file path where thumbnail is stored';
+COMMENT ON COLUMN videos.videos.thumbnail_file_size IS 'Thumbnail file size in bytes';
+COMMENT ON COLUMN videos.videos.thumbnail_content_type IS 'MIME type (image/jpeg, image/png, etc.)';
+
+
+-- Add processing status for better user experience
+ALTER TABLE videos.videos
+ADD COLUMN IF NOT EXISTS processing_status VARCHAR(20)
+CHECK (processing_status IN ('UPLOADING', 'PROCESSING', 'READY', 'FAILED'))
+DEFAULT 'UPLOADING';
+
+-- Add video file metadata
+ALTER TABLE videos.videos
+ADD COLUMN IF NOT EXISTS video_file_path VARCHAR,
+ADD COLUMN IF NOT EXISTS video_file_size BIGINT,
+ADD COLUMN IF NOT EXISTS video_duration_seconds INT,
+ADD COLUMN IF NOT EXISTS video_resolution VARCHAR(20); -- e.g., "1920x1080"
+
+-- Add indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_videos_uploader_id ON videos.videos(uploader_id);
+CREATE INDEX IF NOT EXISTS idx_videos_visibility ON videos.videos(visibility);
+CREATE INDEX IF NOT EXISTS idx_videos_created_at ON videos.videos(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_videos_views ON videos.videos(views DESC);
+CREATE INDEX IF NOT EXISTS idx_videos_processing_status ON videos.videos(processing_status);
+
+-- Composite indexes for common queries
+CREATE INDEX IF NOT EXISTS idx_videos_uploader_visibility ON videos.videos(uploader_id, visibility);
+CREATE INDEX IF NOT EXISTS idx_videos_public_recent ON videos.videos(visibility, created_at DESC)
+WHERE visibility = 'PUBLIC' AND is_deleted = FALSE;
+
+-- TAGS
+CREATE TABLE IF NOT EXISTS videos.tags (
+  id UUID PRIMARY KEY,
+  name VARCHAR UNIQUE NOT NULL
+);
+
+-- VIDEO TAGS
+CREATE TABLE IF NOT EXISTS videos.video_tags (
+  video_id UUID REFERENCES videos.videos(id),
+  tag_id UUID REFERENCES videos.tags(id),
+  PRIMARY KEY (video_id, tag_id)
+);
+
+-- COMMENTS
+CREATE TABLE IF NOT EXISTS interactions.comments (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  video_id UUID REFERENCES videos.videos(id),
+  parent_id UUID REFERENCES interactions.comments(id),
+  content TEXT NOT NULL,
+  is_deleted BOOLEAN DEFAULT FALSE,
+  deleted_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- VIDEO LIKES / DISLIKES
+CREATE TABLE IF NOT EXISTS interactions.video_likes (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  video_id UUID REFERENCES videos.videos(id),
+  is_like BOOLEAN,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, video_id)
+);
+
+-- WATCH LATER
+CREATE TABLE IF NOT EXISTS interactions.watch_later (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  video_id UUID REFERENCES videos.videos(id),
+  added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, video_id)
+);
+
+-- SUBSCRIPTIONS
+CREATE TABLE IF NOT EXISTS subscriptions.subscriptions (
+  id UUID PRIMARY KEY,
+  subscriber_id UUID REFERENCES auth.users(id),
+  creator_id UUID REFERENCES auth.users(id),
+  subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(subscriber_id, creator_id)
+);
+
+-- NOTIFICATIONS
+CREATE TABLE IF NOT EXISTS notifications.notifications (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  message TEXT,
+  type VARCHAR(20),
+  redirect_url VARCHAR,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- HISTORY
+CREATE TABLE IF NOT EXISTS analytics.history (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  video_id UUID REFERENCES videos.videos(id),
+  watched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  watch_duration_seconds INT,
+  last_position_seconds INT,
+  watch_percent INT
+);
+
+-- REPORTS
+CREATE TABLE IF NOT EXISTS analytics.reports (
+  id UUID PRIMARY KEY,
+  reporter_id UUID REFERENCES auth.users(id),
+  video_id UUID REFERENCES videos.videos(id),
+  reason TEXT,
+  is_resolved BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- VIDEO ANALYTICS
+CREATE TABLE IF NOT EXISTS analytics.video_analytics (
+  video_id UUID PRIMARY KEY REFERENCES videos.videos(id) ON DELETE CASCADE,
+  total_views BIGINT DEFAULT 0,
+  likes BIGINT DEFAULT 0,
+  dislikes BIGINT DEFAULT 0,
+  average_watch_time_seconds INT DEFAULT 0
+);
+
+
+-- Add these additional performance indexes
+CREATE INDEX IF NOT EXISTS idx_video_tags_video_id ON videos.video_tags(video_id);
+CREATE INDEX IF NOT EXISTS idx_video_tags_tag_id ON videos.video_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_comments_video_id ON interactions.comments(video_id);
+CREATE INDEX IF NOT EXISTS idx_comments_user_id ON interactions.comments(user_id);
+CREATE INDEX IF NOT EXISTS idx_video_likes_video_id ON interactions.video_likes(video_id);
+CREATE INDEX IF NOT EXISTS idx_video_likes_user_id ON interactions.video_likes(user_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_creator_id ON subscriptions.subscriptions(creator_id);
+CREATE INDEX IF NOT EXISTS idx_history_user_id ON analytics.history(user_id);
+CREATE INDEX IF NOT EXISTS idx_history_video_id ON analytics.history(video_id);
+
+
+-- Update foreign key constraints for better data management
+ALTER TABLE videos.videos
+DROP CONSTRAINT IF EXISTS videos_uploader_id_fkey,
+ADD CONSTRAINT videos_uploader_id_fkey
+FOREIGN KEY (uploader_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+ALTER TABLE videos.video_tags
+DROP CONSTRAINT IF EXISTS video_tags_video_id_fkey,
+ADD CONSTRAINT video_tags_video_id_fkey
+FOREIGN KEY (video_id) REFERENCES videos.videos(id) ON DELETE CASCADE;
+
+ALTER TABLE interactions.comments
+DROP CONSTRAINT IF EXISTS comments_video_id_fkey,
+ADD CONSTRAINT comments_video_id_fkey
+FOREIGN KEY (video_id) REFERENCES videos.videos(id) ON DELETE CASCADE;
+
+
+-- Add some business logic constraints
+ALTER TABLE videos.videos
+ADD CONSTRAINT check_video_file_size CHECK (video_file_size > 0),
+ADD CONSTRAINT check_thumbnail_file_size CHECK (thumbnail_file_size > 0),
+ADD CONSTRAINT check_video_duration CHECK (video_duration_seconds >= 0);
+
+ALTER TABLE interactions.video_likes
+ADD CONSTRAINT check_is_like_not_null CHECK (is_like IS NOT NULL);
+
+ALTER TABLE analytics.history
+ADD CONSTRAINT check_watch_duration CHECK (watch_duration_seconds >= 0),
+ADD CONSTRAINT check_watch_percent CHECK (watch_percent BETWEEN 0 AND 100);
+
+-- Add trigger for videos table (similar to users)
+DROP TRIGGER IF EXISTS trigger_update_videos_updated_at ON videos.videos;
+CREATE TRIGGER trigger_update_videos_updated_at
+BEFORE UPDATE ON videos.videos
+FOR EACH ROW
+EXECUTE FUNCTION auth.update_updated_at_column();
