@@ -19,7 +19,12 @@ public interface VideoService {
 
     // Video listing operations
     VideoListResponse getAllPublicVideos(Pageable pageable);
-    VideoListResponse getUserVideos(UUID userId, Pageable pageable);
+    VideoListResponse getUserVideos(
+            UUID userId,
+            UUID currentUserId,
+            String currentUserRole,
+            Pageable pageable
+    );
     VideoListResponse getCurrentUserVideos(Authentication authentication, Pageable pageable);
 
     // Admin operations - Updated to use Authentication

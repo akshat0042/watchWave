@@ -5,6 +5,8 @@ import org.learn.watchwave.videos.enums.VideoVisibility;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -28,4 +30,11 @@ public interface VideoRepository extends JpaRepository<Video, UUID> {
 
     // Check if video exists
     boolean existsByIdAndIsDeletedFalse(UUID id);
+
+    // VideoRepository.java
+    @Query("SELECT v FROM Video v WHERE v.uploader.id = :userId " +
+            "AND v.visibility = 'PUBLIC' " +
+            "AND v.isDeleted = false")
+    Page<Video> findPublicVideosByUserId(@Param("userId") UUID userId, Pageable pageable);
+
 }

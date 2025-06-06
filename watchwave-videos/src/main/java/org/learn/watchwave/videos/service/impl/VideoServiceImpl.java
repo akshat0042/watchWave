@@ -221,18 +221,29 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public VideoListResponse getUserVideos(UUID userId, Pageable pageable) {
-        Page<Video> videoPage = videoRepository.findByUploaderIdAndIsDeletedFalse(userId, pageable);
-        Page<VideoResponse> responsePage = videoPage.map(this::convertToVideoResponse);
-        return VideoListResponse.from(responsePage);
+    public VideoListResponse getUserVideos(
+            UUID userId,
+            UUID currentUserId,
+            String currentUserRole,
+            Pageable pageable
+    ) {
+        boolean isOwnerOrAdmin = userId.equals(currentUserId) || "ADMIN".equals(currentUserRole);
+
+        Page<Video> videoPage = isOwnerOrAdmin
+                ? videoRepository.findByUploaderIdAndIsDeletedFalse(userId, pageable)
+                : videoRepository.findPublicVideosByUserId(userId, pageable);
+
+        return VideoListResponse.from(videoPage.map(this::convertToVideoResponse));
     }
 
+    // VideoServiceImpl.java
     @Override
     @Transactional(readOnly = true)
     public VideoListResponse getCurrentUserVideos(Authentication authentication, Pageable pageable) {
         UUID currentUserId = authHelper.extractUserId(authentication);
-        return getUserVideos(currentUserId, pageable);
+        String currentUserRole = authHelper.extractUserRole(authentication);
+
+        return getUserVideos(currentUserId, currentUserId, currentUserRole, pageable);
     }
 
     @Override

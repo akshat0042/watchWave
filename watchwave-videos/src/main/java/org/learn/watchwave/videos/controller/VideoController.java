@@ -14,7 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
+import org.learn.watchwave.videos.util.AuthenticationHelper;
 import jakarta.validation.Valid;
 import java.util.UUID;
 
@@ -24,6 +24,7 @@ import java.util.UUID;
 public class VideoController {
 
     private final VideoService videoService;
+    private final AuthenticationHelper authHelper;
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('CREATOR')")
@@ -77,14 +78,19 @@ public class VideoController {
     public ResponseEntity<VideoListResponse> getUserVideos(
             @PathVariable UUID userId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            Authentication authentication
+    ) {
+        UUID currentUserId = authHelper.extractUserId(authentication); // Instance method call
+        String currentUserRole = authHelper.extractUserRole(authentication); // Instance method call
 
         Pageable pageable = PageRequest.of(page, size);
-        VideoListResponse response = videoService.getUserVideos(userId, pageable);
+        VideoListResponse response = videoService.getUserVideos(
+                userId, currentUserId, currentUserRole, pageable
+        );
 
         return ResponseEntity.ok(response);
     }
-
     @GetMapping("/my")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<VideoListResponse> getCurrentUserVideos(
