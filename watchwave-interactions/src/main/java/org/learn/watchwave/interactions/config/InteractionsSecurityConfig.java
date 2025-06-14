@@ -18,14 +18,21 @@ public class InteractionsSecurityConfig {
     @Bean
     public SecurityFilterChain interactionsSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/api/videos/**/likes/**")
+                .securityMatcher("/api/videos/**/likes/**", "/api/videos/**/comments/**")
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                         .requestMatchers(HttpMethod.GET, "/api/videos/*/likes/count").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/videos/*/likes/me").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/videos/*/likes").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/videos/*/likes").authenticated()
+
+                        .requestMatchers(HttpMethod.GET, "/api/videos/*/comments").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/videos/*/comments/*/replies").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/videos/*/comments").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/videos/*/comments/*").authenticated()
+
                         .anyRequest().denyAll()
                 );
         return http.build();

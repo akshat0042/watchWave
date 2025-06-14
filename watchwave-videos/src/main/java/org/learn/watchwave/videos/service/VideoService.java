@@ -5,6 +5,7 @@ import org.learn.watchwave.videos.dto.request.UpdateVideoRequest;
 import org.learn.watchwave.videos.dto.response.VideoResponse;
 import org.learn.watchwave.videos.dto.response.VideoListResponse;
 import org.springframework.data.domain.Pageable;
+import org.learn.watchwave.videos.model.entity.Video;
 import org.springframework.security.core.Authentication;
 
 import java.util.UUID;
@@ -28,7 +29,7 @@ public interface VideoService {
     VideoListResponse getAllVideosForAdmin(Pageable pageable);
     VideoResponse restoreVideo(UUID videoId, Authentication authentication);
     void permanentlyDeleteVideo(UUID videoId, Authentication authentication);
-
+    Video getVideoEntityById(UUID videoId);
     boolean existsById(UUID videoId);
     long countUserVideos(UUID userId);
 }

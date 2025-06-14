@@ -211,6 +211,12 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
+    public Video getVideoEntityById(UUID videoId) {
+        return videoRepository.findById(videoId)
+                .orElseThrow(() -> new IllegalArgumentException("Video not found"));
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public VideoListResponse getAllPublicVideos(Pageable pageable) {
         Page<Video> videoPage = videoRepository.findByVisibilityAndIsDeletedFalseOrderByCreatedAtDesc(
