@@ -180,7 +180,7 @@ public class StreamingServiceImpl implements StreamingService {
             // Build response headers
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType(contentType));
-            headers.set("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
+            headers.set("Cache-Control", "public, max-age=2592000"); // Cache for 1 month
 
             log.info("Serving thumbnail for video: {}", video.getTitle());
 

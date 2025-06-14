@@ -221,12 +221,7 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
-    public VideoListResponse getUserVideos(
-            UUID userId,
-            UUID currentUserId,
-            String currentUserRole,
-            Pageable pageable
-    ) {
+    public VideoListResponse getUserVideos(UUID userId, UUID currentUserId, String currentUserRole, Pageable pageable) {
         boolean isOwnerOrAdmin = userId.equals(currentUserId) || "ADMIN".equals(currentUserRole);
 
         Page<Video> videoPage = isOwnerOrAdmin
@@ -351,6 +346,7 @@ public class VideoServiceImpl implements VideoService {
         return videoId + "_thumb_" + System.currentTimeMillis() + extension;
     }
 
+    //physically store file in computer
     private String saveVideoFile(MultipartFile file, String fileName) {
         try {
             Path uploadPath = Paths.get(videoUploadDir);

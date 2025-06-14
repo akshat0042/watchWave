@@ -14,7 +14,7 @@ import java.util.UUID;
 @Repository
 public interface VideoTagRepository extends JpaRepository<VideoTag, VideoTagId> {
 
-    // Find all video-tag relationships for a specific video
+    // Find all video-tag relationships for a specific video returns a list
     List<VideoTag> findByVideoId(UUID videoId);
 
     // Find all video-tag relationships for a specific tag
@@ -28,7 +28,7 @@ public interface VideoTagRepository extends JpaRepository<VideoTag, VideoTagId> 
     // Check if a video has a specific tag
     boolean existsByVideoIdAndTagId(UUID videoId, UUID tagId);
 
-    // Get tag names for a video (used in convertToVideoResponse)
+    // Get tag names for a video (used in convertToVideoResponse) returns string
     @Query("SELECT vt.tag.name FROM VideoTag vt WHERE vt.video.id = :videoId")
     List<String> findTagNamesByVideoId(@Param("videoId") UUID videoId);
 

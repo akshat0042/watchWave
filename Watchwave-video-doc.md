@@ -2,7 +2,6 @@
 
 ## Table of Contents
 1. [Overview](#overview)
-2. [Architecture](#architecture)
 3. [Database Design](#database-design)
 4. [Video Upload Flow](#video-upload-flow)
 5. [Authorization System](#authorization-system)
@@ -45,71 +44,7 @@ The **WatchWave Video Module** is a production-ready, enterprise-grade video man
 
 ---
 
-## Architecture
 
-### 🏗️ High-Level Architecture
-
-```mermaid
-graph TB
-    A[Client Application] --> B[Video Controller]
-    B --> C[Video Service]
-    C --> D[Video Repository]
-    D --> E[PostgreSQL Database]
-    C --> F[File Storage System]
-    C --> G[Tag Management]
-    B --> H[Authentication Helper]
-    H --> I[JWT Service]
-    
-    subgraph "Security Layer"
-        J[JWT Filter]
-        K[Role-Based Authorization]
-        L[@PreAuthorize Annotations]
-    end
-    
-    B --> J
-    J --> K
-    K --> L
-```
-
-### 📁 Module Structure
-
-```
-watchwave-videos/
-├── 📁 src/main/java/org/learn/watchwave/videos/
-│   ├── 📁 controller/          # REST API endpoints
-│   │   ├── VideoController.java
-│   │   └── AdminVideoController.java
-│   ├── 📁 dto/                 # Data Transfer Objects
-│   │   ├── 📁 request/         # Request DTOs
-│   │   │   ├── UploadVideoRequest.java
-│   │   │   └── UpdateVideoRequest.java
-│   │   └── 📁 response/        # Response DTOs
-│   │       ├── VideoResponse.java
-│   │       └── VideoListResponse.java
-│   ├── 📁 model/               # Database entities
-│   │   ├── 📁 entity/          # JPA entities
-│   │   │   ├── Video.java
-│   │   │   ├── Tag.java
-│   │   │   └── VideoTag.java
-│   │   ├── 📁 id/              # Composite key classes
-│   │   │   └── VideoTagId.java
-│   │   └── UserContext.java    # User context model
-│   ├── 📁 repository/          # Data access layer
-│   │   ├── VideoRepository.java
-│   │   ├── TagRepository.java
-│   │   └── VideoTagRepository.java
-│   ├── 📁 service/             # Business logic
-│   │   ├── VideoService.java
-│   │   └── 📁 impl/
-│   │       └── VideoServiceImpl.java
-│   ├── 📁 util/                # Utility classes
-│   │   ├── AuthenticationHelper.java
-│   │   └── PaginationHelper.java
-│   └── 📁 enums/               # Enumeration classes
-│       ├── VideoVisibility.java
-│       └── ProcessingStatus.java
-└── 📁 src/main/resources/
-    └── 📄 application.properties  # Configuration
 ```
 
 ---
@@ -501,127 +436,84 @@ graph TD
 - [ ] Error handling and responses
 
 ---
-
-## Deployment & Configuration
-
-### ⚙️ Application Properties
-
-#### Database Configuration
-- **URL**: PostgreSQL connection string
-- **Schema**: videos schema for video-related tables
-- **Connection Pool**: HikariCP for connection management
-- **DDL Mode**: validate for production, update for development
-
-#### File Storage Configuration
-- **Upload Directory**: Configurable video upload path
-- **Thumbnail Directory**: Configurable thumbnail upload path
-- **Base URL**: Application base URL for generating public URLs
-- **File Size Limits**: Configurable maximum file sizes
-
-#### Security Configuration
-- **JWT Integration**: Uses auth module's JWT service
-- **CORS**: Configurable cross-origin policies
-- **Method Security**: Enabled for @PreAuthorize annotations
-
-### 🐳 Docker Configuration
-
-#### Container Setup
-- **Base Image**: OpenJDK 21 slim
-- **Port Exposure**: 8080 for HTTP traffic
-- **Volume Mounts**: Persistent storage for uploaded files
-- **Environment Variables**: Database and JWT configuration
-
-#### Docker Compose Integration
-- **Database Service**: PostgreSQL container
-- **Application Service**: Spring Boot application
-- **Volume Management**: Shared storage for files
-- **Network Configuration**: Internal service communication
-
-### 🔧 Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VIDEO_UPLOAD_DIR` | Video file storage path | `./uploads/videos` |
-| `THUMBNAIL_UPLOAD_DIR` | Thumbnail storage path | `./uploads/thumbnails` |
-| `BASE_URL` | Application base URL | `http://localhost:8080` |
-| `MAX_VIDEO_SIZE` | Maximum video file size | `500MB` |
-| `MAX_THUMBNAIL_SIZE` | Maximum thumbnail size | `10MB` |
+Here's a **comprehensive list of all new features and improvements** you've implemented in the WatchWave Video Module, ready to be added to your documentation:
 
 ---
 
-## Troubleshooting
+## **New Features & Improvements**
 
-### 🚨 Common Issues & Solutions
+### **1. Video Streaming with Seeking/Buffering**
+- **HTTP Range Support**:
+  - Endpoint: `GET /api/videos/{videoId}/stream`
+  - Handles `Range: bytes=start-end` headers for partial content
+  - Returns `206 Partial Content` status for valid range requests
+  - Sets `Content-Range` header for browser compatibility
+- **Byte-Range Handling**:
+  - Parses and validates range headers
+  - Streams only requested chunks (no full-file loading)
+  - Supports large files (>2GB) via `RandomAccessFile`
 
-#### 1. File Upload Failures
-**Symptoms**:
-- 413 Request Entity Too Large
-- 400 Bad Request on file upload
-- Files not saving to disk
+## **Updated API Reference**
 
-**Solutions**:
-- Check file size limits in application.properties
-- Verify upload directories exist and have write permissions
-- Ensure multipart configuration is correct
-- Check available disk space
+### **Streaming Endpoints**
+| Endpoint | Method | Headers | Response |
+|----------|--------|---------|----------|
+| `/api/videos/{id}/stream` | GET | `Range: bytes=start-end` (optional) | `200 OK` (full file) or `206 Partial Content` |
+| `/api/thumbnails/{id}` | GET | None | `200 OK` with cached thumbnail |
 
-#### 2. Authentication Issues
-**Symptoms**:
-- 403 Forbidden on video operations
-- JWT token not recognized
-- Role-based access denied
-
-**Solutions**:
-- Verify JWT token is valid and not expired
-- Check user has required role (CREATOR for upload)
-- Ensure Authorization header format: `Bearer `
-- Verify JWT filter is setting token as credentials
-
-#### 3. Database Relationship Issues
-**Symptoms**:
-- LazyInitializationException
-- Duplicate tag creation
-- Foreign key constraint violations
-
-**Solutions**:
-- Use @Transactional annotations on service methods
-- Use JOIN FETCH queries for loading relationships
-- Implement proper cascade settings
-- Verify database schema is up to date
-
-#### 4. File Access Issues
-**Symptoms**:
-- 404 Not Found for video URLs
-- Broken thumbnail links
-- File permission errors
-
-**Solutions**:
-- Verify file paths stored in database are correct
-- Check file system permissions
-- Ensure base URL configuration is correct
-- Implement proper file serving endpoints
-
-### 🔧 Debug Commands
-
-#### Database Queries
-- Check video records and relationships
-- Verify user roles and permissions
-- Examine tag associations
-- Review file path storage
-
-#### File System Checks
-- Verify upload directory structure
-- Check file permissions and ownership
-- Examine disk space usage
-- Validate file integrity
-
-#### Application Logs
-- Review Spring Boot startup logs
-- Check security filter logs
-- Examine transaction logs
-- Monitor error patterns
+### **New Response Headers**
+| Header | Example Value | Purpose |
+|--------|---------------|---------|
+| `Content-Range` | `bytes 0-999/5000` | Shows served byte range |
+| `Accept-Ranges` | `bytes` | Indicates range support |
+| `Content-Length` | `1000` | Size of current chunk |
 
 ---
+
+## **Configuration Changes**
+
+### **application.properties**
+```properties
+# Streaming Optimization
+spring.servlet.multipart.max-file-size=500MB
+server.max-http-header-size=8192
+
+# CORS (Development)
+cors.allowed-origins=http://localhost:8000
+cors.exposed-headers=Content-Range,Content-Length
+```
+
+### **SecurityConfig.java**
+```java
+http
+  .securityMatcher("/api/videos/**", "/api/thumbnails/**")
+  .authorizeHttpRequests(authz -> authz
+      .requestMatchers(HttpMethod.OPTIONS).permitAll()
+      .requestMatchers(HttpMethod.GET, "/api/videos/*/stream").permitAll()
+  );
+```
+
+---
+
+## **Testing Procedures**
+
+### **Range Request Testing**
+```bash
+# Test full download
+curl -v http://localhost:8080/api/videos/{videoId}/stream
+
+# Test range request
+curl -v -H "Range: bytes=1000-1999" http://localhost:8080/api/videos/{videoId}/stream
+```
+
+### **Browser Testing Checklist**
+1. Serve HTML via `python -m http.server 8000`
+2. Use `` tag with `controls` attribute
+3. Verify seeking works without CORS errors
+4. Check network tab for `206` responses
+
+---
+
 
 ## 🚀 Next Steps
 
@@ -651,34 +543,3 @@ After mastering Phase 1, consider these enhancements:
 - [ ] **Like/Dislike System** - User engagement features
 - [ ] **Subscription System** - Creator-follower relationships
 - [ ] **Notification System** - Real-time notifications
-
----
-
-## 📞 Support & Contribution
-
-### Getting Help
-- 📧 **Email**: support@watchwave.com
-- 📚 **Documentation**: Internal Wiki
-- 🐛 **Bug Reports**: Issue Tracker
-- 💬 **Community**: Developer Forum
-
-### Contributing
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add comprehensive tests
-5. Update documentation
-6. Submit a pull request
-
-### Code Standards
-- Follow Spring Boot best practices
-- Maintain test coverage above 80%
-- Use meaningful commit messages
-- Document public APIs
-- Follow security guidelines
-
----
-
-**The WatchWave Video Module provides enterprise-grade video management capabilities, serving as the foundation for a scalable video platform. With its robust architecture, comprehensive security, and extensive feature set, it ensures reliable, efficient, and maintainable video operations for a YouTube-like platform.** 🎬✨
-
-[1] https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/71543222/7dc84fe1-c918-4f58-9caa-3982b6b9e862/paste.txt

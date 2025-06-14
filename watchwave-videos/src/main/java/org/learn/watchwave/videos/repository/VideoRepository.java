@@ -15,9 +15,6 @@ import java.util.UUID;
 @Repository
 public interface VideoRepository extends JpaRepository<Video, UUID> {
 
-    // Get user's videos (for creator dashboard)
-    List<Video> findByUploaderIdAndIsDeletedFalse(UUID uploaderId);
-
     // Get user's videos with pagination
     Page<Video> findByUploaderIdAndIsDeletedFalse(UUID uploaderId, Pageable pageable);
 
