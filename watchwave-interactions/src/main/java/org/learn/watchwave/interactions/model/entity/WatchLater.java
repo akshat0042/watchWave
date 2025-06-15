@@ -1,8 +1,9 @@
 package org.learn.watchwave.interactions.model.entity;
 
-import lombok.*;
 
 import jakarta.persistence.*;
+import lombok.*;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -12,9 +13,8 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "video_likes", schema = "interactions",uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "video_id"}))
-public class VideoLike {
-
+@Table(name = "watch_later", schema = "interactions",uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "video_id"}))
+public class WatchLater {
     @Id
     @GeneratedValue
     private UUID id;
@@ -25,9 +25,12 @@ public class VideoLike {
     @Column(name = "video_id", nullable = false)
     private UUID videoId;
 
-    @Column(name = "is_like", nullable = false)
-    private Boolean liked;
+    @Column(name = "added_at")
+    private Instant addedAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt = Instant.now();
+    @PrePersist
+    public void prePersist() {
+        if (id == null) id = UUID.randomUUID();
+        if (addedAt == null) addedAt = Instant.now();
+    }
 }
