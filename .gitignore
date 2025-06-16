@@ -39,3 +39,5 @@ uploads/
 *.mov
 *.jpg
 *.png
+
+watchwave-app/src/main/resources/application.properties
